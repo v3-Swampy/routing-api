@@ -14,7 +14,7 @@ import {
   SimulationStatus,
   IMetric,
   ChainId,
-} from '@uniswap/smart-order-router'
+} from 'v-swap-smart-order-router'
 import { Pool } from '@uniswap/v3-sdk'
 import JSBI from 'jsbi'
 import _ from 'lodash'

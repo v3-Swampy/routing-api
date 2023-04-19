@@ -10,7 +10,7 @@ import {
   SwapAndAddOptions,
   SwapToRatioStatus,
   SwapType,
-} from '@uniswap/smart-order-router'
+} from 'v-swap-smart-order-router'
 import { Position } from '@uniswap/v3-sdk'
 import JSBI from 'jsbi'
 import { APIGLambdaHandler, ErrorResponse, HandleRequestParams, Response } from '../handler'
