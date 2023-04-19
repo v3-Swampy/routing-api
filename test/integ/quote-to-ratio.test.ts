@@ -13,7 +13,7 @@ import {
   USDC_MAINNET,
   USDT_MAINNET,
   WBTC_MAINNET,
-} from '@uniswap/smart-order-router'
+} from 'v-swap-smart-order-router'
 import { MethodParameters, Pool, Position } from '@uniswap/v3-sdk'
 import { fail } from 'assert'
 import axios, { AxiosResponse } from 'axios'
@@ -721,6 +721,9 @@ describe('quote-to-ratio', async function () {
     [ChainId.MOONBEAM]: null,
     [ChainId.GNOSIS]: null,
     [ChainId.BSC]: USDC_ON(ChainId.BSC),
+    [ChainId.GNOSIS]: null,
+    [ChainId.CFX]: null,
+    [ChainId.CFX_TEST]: null,
   }
 
   const TEST_ERC20_2: { [chainId in ChainId]: Token | null } = {
@@ -742,6 +745,8 @@ describe('quote-to-ratio', async function () {
     [ChainId.GNOSIS]: null,
     [ChainId.ARBITRUM_GOERLI]: null,
     [ChainId.BSC]: USDT_ON(ChainId.BSC),
+    [ChainId.CFX]: null,
+    [ChainId.CFX_TEST]: null,
   }
 
   for (const chain of _.filter(

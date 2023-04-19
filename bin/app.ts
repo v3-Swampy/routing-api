@@ -1,4 +1,4 @@
-import { ChainId } from '@uniswap/smart-order-router'
+import { ChainId } from 'v-swap-smart-order-router'
 import * as cdk from 'aws-cdk-lib'
 import { CfnOutput, SecretValue, Stack, StackProps, Stage, StageProps } from 'aws-cdk-lib'
 import * as chatbot from 'aws-cdk-lib/aws-chatbot'
