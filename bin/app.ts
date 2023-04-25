@@ -1,20 +1,20 @@
-/*import { ChainId } from 'v-swap-smart-order-router'*/
+import { ChainId } from 'v-swap-smart-order-router'
 import * as cdk from 'aws-cdk-lib'
-/*import { CfnOutput, SecretValue, Stack, StackProps, Stage, StageProps } from 'aws-cdk-lib'
+import { CfnOutput, SecretValue, Stack, StackProps, Stage, StageProps } from 'aws-cdk-lib'
 import * as chatbot from 'aws-cdk-lib/aws-chatbot'
 import { BuildEnvironmentVariableType } from 'aws-cdk-lib/aws-codebuild'
 import { PipelineNotificationEvents } from 'aws-cdk-lib/aws-codepipeline'
 import * as sm from 'aws-cdk-lib/aws-secretsmanager'
 import { CodeBuildStep, CodePipeline, CodePipelineSource } from 'aws-cdk-lib/pipelines'
-import { Construct } from 'constructs'*/
+import { Construct } from 'constructs'
 import dotenv from 'dotenv'
 import 'source-map-support/register'
-/*import { SUPPORTED_CHAINS } from '../lib/handlers/injector-sor'*/
+import { SUPPORTED_CHAINS } from '../lib/handlers/injector-sor'
 import { STAGE } from '../lib/util/stage'
 import { RoutingAPIStack } from './stacks/routing-api-stack'
 dotenv.config()
 
-/*export class RoutingAPIStage extends Stage {
+export class RoutingAPIStage extends Stage {
   public readonly url: CfnOutput
 
   constructor(
@@ -67,9 +67,9 @@ dotenv.config()
     })
     this.url = url
   }
-}*/
+}
 
-/*export class RoutingAPIPipeline extends Stack {
+export class RoutingAPIPipeline extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props)
 
@@ -109,14 +109,14 @@ dotenv.config()
       secretCompleteArn:
         'arn:aws:secretsmanager:us-east-2:644039819003:secret:routing-api-rpc-urls-json-primary-ixS8mw',
 
-      /!*
+      /*
       The backup secrets mostly use our Alchemy RPC urls
       However Alchemy does not support Rinkeby, Ropsten, and Kovan
       So those chains are set to our Infura RPC urls
       When switching to the backups,
       we must set the multicall chunk size to 50 so that optimism
       does not bug out on Alchemy's end
-      *!/
+      */
       //secretCompleteArn: arn:aws:secretsmanager:us-east-2:644039819003:secret:routing-api-rpc-urls-json-backup-D2sWoe
     })
 
@@ -239,7 +239,7 @@ dotenv.config()
 
     applicationStage.addPost(testAction)
   }
-}*/
+}
 
 const app = new cdk.App()
 
@@ -281,7 +281,7 @@ new RoutingAPIStack(app, 'RoutingAPIStack', {
 })
 
 // prod stack
-new RoutingAPIStack(app, `RoutingAPIStack-${STAGE.PROD}`, {
+new RoutingAPIStack(app, `RoutingAPIStack-prod`, {
   jsonRpcProviders: jsonRpcProviders,
   provisionedConcurrency: process.env.PROVISION_CONCURRENCY ? parseInt(process.env.PROVISION_CONCURRENCY) : 0,
   throttlingOverride: process.env.THROTTLE_PER_FIVE_MINS,
@@ -297,6 +297,6 @@ new RoutingAPIStack(app, `RoutingAPIStack-${STAGE.PROD}`, {
   tenderlyAccessKey: process.env.TENDERLY_ACCESS_KEY!,
 })
 
-/*new RoutingAPIPipeline(app, 'RoutingAPIPipelineStack', {
+new RoutingAPIPipeline(app, 'RoutingAPIPipelineStack', {
   env: { account: '644039819003', region: 'us-east-2' },
-})*/
+})
