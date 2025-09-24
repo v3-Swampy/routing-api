@@ -104,7 +104,7 @@
     "ts-mocha": "^8.0.0",
     "upgrade": "^1.1.0",
     "uuid": "^3.4.0",
-    "v-swap-smart-order-router": "^3.10.14"
+    "v-swap-smart-order-router": "^3.10.15"
   },
   "prettier": {
     "printWidth": 120,
