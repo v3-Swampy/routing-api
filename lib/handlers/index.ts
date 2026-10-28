@@ -1,7 +1,10 @@
+import { configureHttpKeepAlive } from '../util/http-keep-alive'
 import { QuoteToRatioHandlerInjector } from './quote-to-ratio/injector'
 import { QuoteToRatioHandler } from './quote-to-ratio/quote-to-ratio'
 import { QuoteHandlerInjector } from './quote/injector'
 import { QuoteHandler } from './quote/quote'
+
+configureHttpKeepAlive()
 
 const quoteInjectorPromise = new QuoteHandlerInjector('quoteInjector').build()
 const quoteToRatioInjectorPromise = new QuoteToRatioHandlerInjector('quoteToRatioInjector').build()
