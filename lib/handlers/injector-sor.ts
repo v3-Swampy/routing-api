@@ -93,6 +93,8 @@ export interface ContainerInjected {
   getDependencies(chainId: ChainId): Promise<ContainerDependencies | undefined>
 }
 
+let containerInjected: Promise<ContainerInjected> | undefined
+
 export abstract class InjectorSOR<Router, QueryParams> extends Injector<
   ContainerInjected,
   RequestInjected<Router>,
@@ -100,6 +102,20 @@ export abstract class InjectorSOR<Router, QueryParams> extends Injector<
   QueryParams
 > {
   public async buildContainerInjected(): Promise<ContainerInjected> {
+    if (!containerInjected) {
+      const built = this.buildContainerInjectedOnce()
+      containerInjected = built
+      built.catch(() => {
+        if (containerInjected === built) {
+          containerInjected = undefined
+        }
+      })
+    }
+
+    return containerInjected
+  }
+
+  private async buildContainerInjectedOnce(): Promise<ContainerInjected> {
     const log: Logger = bunyan.createLogger({
       name: this.injectorName,
       serializers: bunyan.stdSerializers,
