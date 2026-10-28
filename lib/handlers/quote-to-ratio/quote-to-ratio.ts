@@ -80,8 +80,10 @@ export class QuoteToRatioHandler extends APIGLambdaHandler<
     // Parse user provided token address/symbol to Currency object.
     const before = Date.now()
     const type = 'exactIn'
-    const token0 = await tokenStringToCurrency(tokenListProvider, tokenProvider, token0Address, token0ChainId, log)
-    const token1 = await tokenStringToCurrency(tokenListProvider, tokenProvider, token1Address, token1ChainId, log)
+    const [token0, token1] = await Promise.all([
+      tokenStringToCurrency(tokenListProvider, tokenProvider, token0Address, token0ChainId, log),
+      tokenStringToCurrency(tokenListProvider, tokenProvider, token1Address, token1ChainId, log),
+    ])
 
     metric.putMetric('Token01StrToToken', Date.now() - before, MetricLoggerUnit.Milliseconds)
 

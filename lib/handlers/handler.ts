@@ -120,7 +120,11 @@ export abstract class APIGLambdaHandler<CInj, RInj extends BaseRInj, ReqBody, Re
           })
 
           const requestStart = Date.now()
-          log.info({ event, context }, 'Request started.')
+          log.info(
+            { requestId: context.awsRequestId, path: event.path, query: event.queryStringParameters },
+            'Request started.'
+          )
+          log.debug({ event, context }, 'Request started.')
 
           let requestBody: ReqBody
           let requestQueryParams: ReqQueryParams
@@ -211,10 +215,15 @@ export abstract class APIGLambdaHandler<CInj, RInj extends BaseRInj, ReqBody, Re
             return INTERNAL_ERROR(id)
           }
 
-          log.info({ statusCode, response }, `Request ended. ${statusCode}`)
+          const responseBody = JSON.stringify(response)
+          log.info(
+            { statusCode, responseBytes: responseBody.length, requestDuration: Date.now() - requestStart },
+            `Request ended. ${statusCode}`
+          )
+          log.debug({ response }, 'Response body')
           return {
             statusCode,
-            body: JSON.stringify(response),
+            body: responseBody,
           }
         }
     )
