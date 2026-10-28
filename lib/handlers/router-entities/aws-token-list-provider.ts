@@ -11,18 +11,20 @@ import NodeCache from 'node-cache'
 import { s3Client } from '../../util/s3'
 
 const TOKEN_LIST_CACHE = new NodeCache({ stdTTL: 600, useClones: false })
-let pendingTokenList: Promise<TokenList> | undefined
+const pendingTokenLists = new Map<string, Promise<TokenList>>()
 
 const getTokenList = async (bucket: string, tokenListURI: string): Promise<TokenList> => {
-  const cachedTokenList = TOKEN_LIST_CACHE.get<TokenList>(tokenListURI)
+  const cacheKey = `${bucket}:${tokenListURI}`
+  const cachedTokenList = TOKEN_LIST_CACHE.get<TokenList>(cacheKey)
   if (cachedTokenList) {
     return cachedTokenList
   }
 
   // All chain initializers start at once. Share their S3 request instead of
   // sending one identical GET per chain.
-  if (!pendingTokenList) {
-    pendingTokenList = (async () => {
+  let pending = pendingTokenLists.get(cacheKey)
+  if (!pending) {
+    pending = (async () => {
       log.info(`Getting tokenLists from s3.`)
       const tokenListResult = await s3Client
         .getObject({ Key: encodeURIComponent(tokenListURI), Bucket: bucket })
@@ -35,14 +37,21 @@ const getTokenList = async (bucket: string, tokenListURI: string): Promise<Token
 
       const tokenList = JSON.parse(tokenListBuffer.toString('utf-8')) as TokenList
       log.info(`Got tokenList from s3. ${tokenList.tokens.length} tokens in main list.`)
-      TOKEN_LIST_CACHE.set<TokenList>(tokenListURI, tokenList)
+      TOKEN_LIST_CACHE.set<TokenList>(cacheKey, tokenList)
       return tokenList
-    })().finally(() => {
-      pendingTokenList = undefined
-    })
+    })()
+
+    const created = pending
+    pendingTokenLists.set(cacheKey, created)
+    const clear = () => {
+      if (pendingTokenLists.get(cacheKey) === created) {
+        pendingTokenLists.delete(cacheKey)
+      }
+    }
+    created.then(clear, clear)
   }
 
-  return pendingTokenList
+  return pending
 }
 
 export class AWSTokenListProvider extends CachingTokenListProvider {
