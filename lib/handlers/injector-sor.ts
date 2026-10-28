@@ -294,11 +294,7 @@ export abstract class InjectorSOR<Router, QueryParams> extends Injector<
           chainId,
           dependencies: {
             provider,
-            tokenListProvider: await AWSTokenListProvider.fromTokenListS3Bucket(
-              chainId,
-              TOKEN_LIST_CACHE_BUCKET!,
-              DEFAULT_TOKEN_LIST
-            ),
+            tokenListProvider,
             blockedTokenListProvider: await CachingTokenListProvider.fromTokenList(
               chainId,
               UNSUPPORTED_TOKEN_LIST as TokenList,

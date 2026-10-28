@@ -7,9 +7,9 @@ import {
   V2SubgraphPool,
   V3SubgraphPool,
 } from 'v-swap-smart-order-router'
-import { S3 } from 'aws-sdk'
 import NodeCache from 'node-cache'
 import { S3_POOL_CACHE_KEY } from '../../util/pool-cache-key'
+import { s3Client } from '../../util/s3'
 
 const POOL_CACHE = new NodeCache({ stdTTL: 240, useClones: false })
 const LOCAL_POOL_CACHE_KEY = (chainId: ChainId, protocol: Protocol) => `pools${chainId}#${protocol}`
@@ -36,16 +36,11 @@ export class AWSSubgraphProvider<TSubgraphPool extends V2SubgraphPool | V3Subgra
       `Subgraph pools local cache miss for protocol ${this.protocol}. Getting subgraph pools from S3`
     )
 
-    const s3 = new S3()
-
-    const pools = await cachePoolsFromS3<TSubgraphPool>(s3, this.bucket, this.baseKey, this.chain, this.protocol)
-
-    return pools
+    return cachePoolsFromS3<TSubgraphPool>(this.bucket, this.baseKey, this.chain, this.protocol)
   }
 }
 
 export const cachePoolsFromS3 = async <TSubgraphPool>(
-  s3: S3,
   bucket: string,
   baseKey: string,
   chainId: ChainId,
@@ -55,7 +50,7 @@ export const cachePoolsFromS3 = async <TSubgraphPool>(
 
   let result
   try {
-    result = await s3.getObject({ Key: key, Bucket: bucket }).promise()
+    result = await s3Client.getObject({ Key: key, Bucket: bucket }).promise()
   } catch (err) {
     log.error({ bucket, key, err }, `Failed to get pools from S3 for ${protocol} on chain ${chainId}`)
     throw new Error(`Failed to get pools from S3 for ${protocol} on chain ${chainId}`)
@@ -82,8 +77,7 @@ export class V3AWSSubgraphProvider extends AWSSubgraphProvider<V3SubgraphPool> i
   }
 
   public static async EagerBuild(bucket: string, baseKey: string, chainId: ChainId): Promise<V3AWSSubgraphProvider> {
-    const s3 = new S3()
-    await cachePoolsFromS3<V3SubgraphPool>(s3, bucket, baseKey, chainId, Protocol.V3)
+    await cachePoolsFromS3<V3SubgraphPool>(bucket, baseKey, chainId, Protocol.V3)
 
     return new V3AWSSubgraphProvider(chainId, bucket, baseKey)
   }
@@ -95,8 +89,7 @@ export class V2AWSSubgraphProvider extends AWSSubgraphProvider<V2SubgraphPool> i
   }
 
   public static async EagerBuild(bucket: string, baseKey: string, chainId: ChainId): Promise<V2AWSSubgraphProvider> {
-    const s3 = new S3()
-    await cachePoolsFromS3<V2SubgraphPool>(s3, bucket, baseKey, chainId, Protocol.V2)
+    await cachePoolsFromS3<V2SubgraphPool>(bucket, baseKey, chainId, Protocol.V2)
 
     return new V2AWSSubgraphProvider(chainId, bucket, baseKey)
   }
