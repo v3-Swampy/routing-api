@@ -77,9 +77,10 @@ export class V3AWSSubgraphProvider extends AWSSubgraphProvider<V3SubgraphPool> i
   }
 
   public static async EagerBuild(bucket: string, baseKey: string, chainId: ChainId): Promise<V3AWSSubgraphProvider> {
-    await cachePoolsFromS3<V3SubgraphPool>(bucket, baseKey, chainId, Protocol.V3)
+    const provider = new V3AWSSubgraphProvider(chainId, bucket, baseKey)
+    await provider.getPools()
 
-    return new V3AWSSubgraphProvider(chainId, bucket, baseKey)
+    return provider
   }
 }
 
@@ -89,8 +90,9 @@ export class V2AWSSubgraphProvider extends AWSSubgraphProvider<V2SubgraphPool> i
   }
 
   public static async EagerBuild(bucket: string, baseKey: string, chainId: ChainId): Promise<V2AWSSubgraphProvider> {
-    await cachePoolsFromS3<V2SubgraphPool>(bucket, baseKey, chainId, Protocol.V2)
+    const provider = new V2AWSSubgraphProvider(chainId, bucket, baseKey)
+    await provider.getPools()
 
-    return new V2AWSSubgraphProvider(chainId, bucket, baseKey)
+    return provider
   }
 }
