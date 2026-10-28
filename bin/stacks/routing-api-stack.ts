@@ -103,6 +103,9 @@ export class RoutingAPIStack extends cdk.Stack {
 
     const api = new aws_apigateway.RestApi(this, 'routing-api', {
       restApiName: 'Routing API',
+      // Quote responses are commonly tens of KB; compress them at the edge when
+      // the caller sends Accept-Encoding: gzip.
+      minimumCompressionSize: 1024,
       deployOptions: {
         tracingEnabled: true,
         loggingLevel: MethodLoggingLevel.ERROR,
