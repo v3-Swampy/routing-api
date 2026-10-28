@@ -78,7 +78,6 @@ export type ContainerDependencies = {
   v2SubgraphProvider: IV2SubgraphProvider
   tokenListProvider: ITokenListProvider
   gasPriceProvider: IGasPriceProvider
-  tokenProviderFromTokenList: ITokenProvider
   blockedTokenListProvider: ITokenListProvider
   v3PoolProvider: IV3PoolProvider
   v2PoolProvider: IV2PoolProvider
@@ -129,12 +128,10 @@ export abstract class InjectorSOR<Router, QueryParams> extends Injector<
       const url = process.env[`WEB3_RPC_${chainId.toString()}`]!
 
       if (!url) {
+        // This router instance will not be able to route through any chain
+        // for which RPC URL is not set, so requests for it return a 500.
         log.fatal({ chainId: chainId }, `Fatal: No Web3 RPC endpoint set for chain`)
         return undefined
-        // This router instance will not be able to route through any chain
-        // for which RPC URL is not set
-        // For now, if RPC URL is not set for a chain, a request to route
-        // on the chain will return Err 500
       }
 
       let timeout: number
@@ -309,7 +306,6 @@ export abstract class InjectorSOR<Router, QueryParams> extends Injector<
         ),
         multicallProvider: multicall2Provider,
         tokenProvider,
-        tokenProviderFromTokenList: tokenListProvider,
         gasPriceProvider: new CachingGasStationProvider(
           chainId,
           new OnChainGasPriceProvider(

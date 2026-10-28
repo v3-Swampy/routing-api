@@ -15,7 +15,7 @@ export class LazyAsyncMap<K, V> {
       return existing
     }
 
-    const value = Promise.resolve().then(() => this.build(key))
+    const value = this.build(key)
     this.values.set(key, value)
     value.catch(() => {
       if (this.values.get(key) === value) {

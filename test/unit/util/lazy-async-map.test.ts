@@ -4,24 +4,17 @@ import { LazyAsyncMap } from '../../../lib/util/lazy-async-map'
 describe('LazyAsyncMap', () => {
   it('builds a key once and shares the in-flight promise', async () => {
     let builds = 0
-    let resolve: (value: string) => void = () => undefined
-    const map = new LazyAsyncMap<string, string>(() => {
+    const map = new LazyAsyncMap<string, string>(async (key) => {
       builds++
-      return new Promise((res) => {
-        resolve = res
-      })
+      await new Promise((resolve) => setTimeout(resolve, 1))
+      return key
     })
 
-    const first = map.get('mainnet')
-    const second = map.get('mainnet')
+    const [first, second] = await Promise.all([map.get('mainnet'), map.get('mainnet')])
 
-    await Promise.resolve()
-    expect(builds).to.equal(1)
-    resolve('dependencies')
-
-    expect(await first).to.equal('dependencies')
-    expect(await second).to.equal('dependencies')
-    expect(await map.get('mainnet')).to.equal('dependencies')
+    expect(first).to.equal('mainnet')
+    expect(second).to.equal('mainnet')
+    expect(await map.get('mainnet')).to.equal('mainnet')
     expect(builds).to.equal(1)
   })
 
