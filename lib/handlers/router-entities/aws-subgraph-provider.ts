@@ -7,12 +7,21 @@ import {
   V2SubgraphPool,
   V3SubgraphPool,
 } from 'v-swap-smart-order-router'
-import NodeCache from 'node-cache'
 import { S3_POOL_CACHE_KEY } from '../../util/pool-cache-key'
 import { s3Client } from '../../util/s3'
+import { StaleWhileRevalidateCache } from '../../util/stale-while-revalidate'
 
-const POOL_CACHE = new NodeCache({ stdTTL: 240, useClones: false })
-const LOCAL_POOL_CACHE_KEY = (chainId: ChainId, protocol: Protocol) => `pools${chainId}#${protocol}`
+const POOL_CACHE_TTL_MS = 4 * 60 * 1000
+// The pool cache cron runs every 15 minutes. Serving a stale list for at most
+// one cron interval keeps a transient S3 outage from failing quotes while still
+// bounding how long deprecated pools can be routed against.
+const POOL_CACHE_MAX_STALE_MS = 15 * 60 * 1000
+
+const POOL_CACHE = new StaleWhileRevalidateCache({
+  ttlMs: POOL_CACHE_TTL_MS,
+  maxStaleMs: POOL_CACHE_MAX_STALE_MS,
+  onRefreshError: (key, err) => log.error({ err, key }, 'Failed to refresh subgraph pool cache; serving stale pools'),
+})
 
 export class AWSSubgraphProvider<TSubgraphPool extends V2SubgraphPool | V3SubgraphPool> {
   constructor(private chain: ChainId, private protocol: Protocol, private bucket: string, private baseKey: string) {}
@@ -20,27 +29,20 @@ export class AWSSubgraphProvider<TSubgraphPool extends V2SubgraphPool | V3Subgra
   public async getPools(): Promise<TSubgraphPool[]> {
     log.info(`In new AWS subgraph provider for protocol ${this.protocol}`)
 
-    const cachedPools = POOL_CACHE.get<TSubgraphPool[]>(LOCAL_POOL_CACHE_KEY(this.chain, this.protocol))
+    const cacheKey = `${this.bucket}:${S3_POOL_CACHE_KEY(this.baseKey, this.chain, this.protocol)}`
 
-    if (cachedPools) {
+    return POOL_CACHE.get(cacheKey, async () => {
       log.info(
-        { subgraphPoolsSample: cachedPools.slice(0, 5) },
-        `Subgraph pools fetched from local cache for protocol ${this.protocol}. Num: ${cachedPools.length}`
+        { bucket: this.bucket, key: this.baseKey },
+        `Subgraph pools cache refresh for protocol ${this.protocol}. Getting subgraph pools from S3`
       )
 
-      return cachedPools
-    }
-
-    log.info(
-      { bucket: this.bucket, key: this.baseKey },
-      `Subgraph pools local cache miss for protocol ${this.protocol}. Getting subgraph pools from S3`
-    )
-
-    return cachePoolsFromS3<TSubgraphPool>(this.bucket, this.baseKey, this.chain, this.protocol)
+      return fetchPoolsFromS3<TSubgraphPool>(this.bucket, this.baseKey, this.chain, this.protocol)
+    })
   }
 }
 
-export const cachePoolsFromS3 = async <TSubgraphPool>(
+const fetchPoolsFromS3 = async <TSubgraphPool>(
   bucket: string,
   baseKey: string,
   chainId: ChainId,
@@ -65,8 +67,6 @@ export const cachePoolsFromS3 = async <TSubgraphPool>(
   const pools = JSON.parse(poolsBuffer.toString('utf-8')) as TSubgraphPool[]
 
   log.info({ bucket, key }, `Got subgraph pools from S3 for protocol ${protocol} on ${chainId}. Num: ${pools.length}`)
-
-  POOL_CACHE.set<TSubgraphPool[]>(LOCAL_POOL_CACHE_KEY(chainId, protocol), pools)
 
   return pools
 }
