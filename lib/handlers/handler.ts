@@ -221,6 +221,7 @@ export abstract class APIGLambdaHandler<CInj, RInj extends BaseRInj, ReqBody, Re
             const responseValidation = await this.parseAndValidateResponse(body, id, log)
 
             if (responseValidation.state == 'invalid') {
+              recordHandledError(metric, 'response_schema')
               return responseValidation.errorResponse
             }
 
