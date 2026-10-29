@@ -153,12 +153,29 @@ export class RoutingLambdaStack extends cdk.NestedStack {
       evaluationPeriods: 3,
     })
 
+    // The handler converts unexpected exceptions into 500 responses, so they never
+    // reach Lambda's own Errors metric. Alarm on the counter it emits instead.
+    const lambdaAlarmHandledErrors = new aws_cloudwatch.Alarm(this, 'RoutingAPI-HandledErrors', {
+      metric: new aws_cloudwatch.Metric({
+        namespace: 'Uniswap',
+        metricName: 'HandlerError',
+        dimensionsMap: { Service: 'RoutingAPI' },
+        period: Duration.minutes(15),
+        statistic: 'sum',
+      }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      treatMissingData: aws_cloudwatch.TreatMissingData.NOT_BREACHING,
+    })
+
     if (chatbotSNSArn) {
       const chatBotTopic = aws_sns.Topic.fromTopicArn(this, 'ChatbotTopic', chatbotSNSArn)
 
       lambdaAlarmErrorRate.addAlarmAction(new aws_cloudwatch_actions.SnsAction(chatBotTopic))
 
       lambdaThrottlesErrorRate.addAlarmAction(new aws_cloudwatch_actions.SnsAction(chatBotTopic))
+
+      lambdaAlarmHandledErrors.addAlarmAction(new aws_cloudwatch_actions.SnsAction(chatBotTopic))
     }
 
     const enableProvisionedConcurrency = provisionedConcurrency > 0

@@ -69,9 +69,9 @@ export class QuoteToRatioHandlerInjector extends InjectorSOR<
     const chainId = token0ChainId
     const chainIdEnum = ID_TO_CHAIN_ID(chainId)
 
-    const { dependencies } = containerInjected
+    const dependencies = await containerInjected.getDependencies(chainIdEnum)
 
-    if (!dependencies[chainIdEnum]) {
+    if (!dependencies) {
       // Request validation should prevent reject unsupported chains with 4xx already, so this should not be possible.
       throw new Error(`No container injected dependencies for chain: ${chainIdEnum}`)
     }
@@ -89,7 +89,7 @@ export class QuoteToRatioHandlerInjector extends InjectorSOR<
       v2QuoteProvider,
       v2SubgraphProvider,
       gasPriceProvider: gasPriceProviderOnChain,
-    } = dependencies[chainIdEnum]!
+    } = dependencies
 
     let gasPriceProvider = gasPriceProviderOnChain
     if (gasPriceWei) {

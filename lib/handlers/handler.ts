@@ -1,5 +1,5 @@
 import Joi from '@hapi/joi'
-import { metricScope, MetricsLogger } from 'aws-embedded-metrics'
+import { metricScope, MetricsLogger, Unit } from 'aws-embedded-metrics'
 import {
   APIGatewayProxyEvent,
   APIGatewayProxyEventQueryStringParameters,
@@ -83,6 +83,18 @@ const INTERNAL_ERROR = (id?: string) => {
   }
 }
 
+/**
+ * A handled 500 is returned as an ordinary API Gateway response, so Lambda's own
+ * Errors metric never moves. Record it explicitly, otherwise the error alarm on
+ * this function cannot fire.
+ */
+const recordHandledError = (metric: MetricsLogger, reason: string) => {
+  metric.setNamespace('Uniswap')
+  metric.setDimensions({ Service: 'RoutingAPI' })
+  metric.setProperty('errorReason', reason)
+  metric.putMetric('HandlerError', 1, Unit.Count)
+}
+
 export abstract class APIGLambdaHandler<CInj, RInj extends BaseRInj, ReqBody, ReqQueryParams, Res> {
   constructor(
     private handlerName: string,
@@ -120,7 +132,11 @@ export abstract class APIGLambdaHandler<CInj, RInj extends BaseRInj, ReqBody, Re
           })
 
           const requestStart = Date.now()
-          log.info({ event, context }, 'Request started.')
+          log.info(
+            { requestId: context.awsRequestId, path: event.path, query: event.queryStringParameters },
+            'Request started.'
+          )
+          log.debug({ event, context }, 'Request started.')
 
           let requestBody: ReqBody
           let requestQueryParams: ReqQueryParams
@@ -135,6 +151,7 @@ export abstract class APIGLambdaHandler<CInj, RInj extends BaseRInj, ReqBody, Re
             requestQueryParams = requestValidation.requestQueryParams
           } catch (err) {
             log.error({ err }, 'Unexpected error validating request')
+            recordHandledError(metric, 'request_validation')
             return INTERNAL_ERROR()
           }
 
@@ -155,6 +172,7 @@ export abstract class APIGLambdaHandler<CInj, RInj extends BaseRInj, ReqBody, Re
             )
           } catch (err) {
             log.error({ err, event }, 'Unexpected error building request injected.')
+            recordHandledError(metric, 'request_injected')
             return INTERNAL_ERROR()
           }
 
@@ -194,6 +212,7 @@ export abstract class APIGLambdaHandler<CInj, RInj extends BaseRInj, ReqBody, Re
             }
           } catch (err) {
             log.error({ err }, 'Unexpected error in handler')
+            recordHandledError(metric, 'handle_request')
             return INTERNAL_ERROR(id)
           }
 
@@ -202,19 +221,26 @@ export abstract class APIGLambdaHandler<CInj, RInj extends BaseRInj, ReqBody, Re
             const responseValidation = await this.parseAndValidateResponse(body, id, log)
 
             if (responseValidation.state == 'invalid') {
+              recordHandledError(metric, 'response_schema')
               return responseValidation.errorResponse
             }
 
             response = responseValidation.response
           } catch (err) {
             log.error({ err }, 'Unexpected error validating response')
+            recordHandledError(metric, 'response_validation')
             return INTERNAL_ERROR(id)
           }
 
-          log.info({ statusCode, response }, `Request ended. ${statusCode}`)
+          const responseBody = JSON.stringify(response)
+          log.info(
+            { statusCode, responseBytes: responseBody.length, requestDuration: Date.now() - requestStart },
+            `Request ended. ${statusCode}`
+          )
+          log.debug({ response }, 'Response body')
           return {
             statusCode,
-            body: JSON.stringify(response),
+            body: responseBody,
           }
         }
     )

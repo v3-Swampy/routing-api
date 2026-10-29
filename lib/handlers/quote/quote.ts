@@ -83,21 +83,10 @@ export class QuoteHandler extends APIGLambdaHandler<
     // Parse user provided token address/symbol to Currency object.
     let before = Date.now()
 
-    const currencyIn = await tokenStringToCurrency(
-      tokenListProvider,
-      tokenProvider,
-      tokenInAddress,
-      tokenInChainId,
-      log
-    )
-
-    const currencyOut = await tokenStringToCurrency(
-      tokenListProvider,
-      tokenProvider,
-      tokenOutAddress,
-      tokenOutChainId,
-      log
-    )
+    const [currencyIn, currencyOut] = await Promise.all([
+      tokenStringToCurrency(tokenListProvider, tokenProvider, tokenInAddress, tokenInChainId, log),
+      tokenStringToCurrency(tokenListProvider, tokenProvider, tokenOutAddress, tokenOutChainId, log),
+    ])
 
     metric.putMetric('TokenInOutStrToToken', Date.now() - before, MetricLoggerUnit.Milliseconds)
 
