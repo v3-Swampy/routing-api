@@ -1,5 +1,5 @@
 import Joi from '@hapi/joi'
-import { metricScope, MetricsLogger } from 'aws-embedded-metrics'
+import { metricScope, MetricsLogger, Unit } from 'aws-embedded-metrics'
 import {
   APIGatewayProxyEvent,
   APIGatewayProxyEventQueryStringParameters,
@@ -83,6 +83,18 @@ const INTERNAL_ERROR = (id?: string) => {
   }
 }
 
+/**
+ * A handled 500 is returned as an ordinary API Gateway response, so Lambda's own
+ * Errors metric never moves. Record it explicitly, otherwise the error alarm on
+ * this function cannot fire.
+ */
+const recordHandledError = (metric: MetricsLogger, reason: string) => {
+  metric.setNamespace('Uniswap')
+  metric.setDimensions({ Service: 'RoutingAPI' })
+  metric.setProperty('errorReason', reason)
+  metric.putMetric('HandlerError', 1, Unit.Count)
+}
+
 export abstract class APIGLambdaHandler<CInj, RInj extends BaseRInj, ReqBody, ReqQueryParams, Res> {
   constructor(
     private handlerName: string,
@@ -139,6 +151,7 @@ export abstract class APIGLambdaHandler<CInj, RInj extends BaseRInj, ReqBody, Re
             requestQueryParams = requestValidation.requestQueryParams
           } catch (err) {
             log.error({ err }, 'Unexpected error validating request')
+            recordHandledError(metric, 'request_validation')
             return INTERNAL_ERROR()
           }
 
@@ -159,6 +172,7 @@ export abstract class APIGLambdaHandler<CInj, RInj extends BaseRInj, ReqBody, Re
             )
           } catch (err) {
             log.error({ err, event }, 'Unexpected error building request injected.')
+            recordHandledError(metric, 'request_injected')
             return INTERNAL_ERROR()
           }
 
@@ -198,6 +212,7 @@ export abstract class APIGLambdaHandler<CInj, RInj extends BaseRInj, ReqBody, Re
             }
           } catch (err) {
             log.error({ err }, 'Unexpected error in handler')
+            recordHandledError(metric, 'handle_request')
             return INTERNAL_ERROR(id)
           }
 
@@ -212,6 +227,7 @@ export abstract class APIGLambdaHandler<CInj, RInj extends BaseRInj, ReqBody, Re
             response = responseValidation.response
           } catch (err) {
             log.error({ err }, 'Unexpected error validating response')
+            recordHandledError(metric, 'response_validation')
             return INTERNAL_ERROR(id)
           }
 
