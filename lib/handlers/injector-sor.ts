@@ -110,8 +110,14 @@ const CELO_QUOTE_PROFILE: QuoteProviderProfile = {
   successRateFailureOverrides: { gasLimitOverride: 6_250_000, multicallChunk: 4 },
 }
 
+// 505k per call was below what these quotes consume: half of the batches landed
+// under the 15% success floor, which fails the batch and resets every quote for
+// another attempt, so each request priced everything twice. The retry succeeds
+// at 2M, which points at the per-call allowance rather than the node. Twenty
+// calls at 1M keeps the batch total below the old 25.25M while doubling what any
+// single call may spend.
 const CFX_QUOTE_PROFILE: QuoteProviderProfile = {
-  batchParams: { multicallChunk: 50, gasLimitPerCall: 505_000, quoteMinSuccessRate: 0.15 },
+  batchParams: { multicallChunk: 20, gasLimitPerCall: 1_000_000, quoteMinSuccessRate: 0.15 },
   gasErrorFailureOverride: { gasLimitOverride: 2_000_000, multicallChunk: 10 },
   successRateFailureOverrides: { gasLimitOverride: 2_000_000, multicallChunk: 10 },
 }
