@@ -1,5 +1,7 @@
 import { Token } from '@uniswap/sdk-core'
 import {
+  BatchParams,
+  BlockNumberConfig,
   CachingGasStationProvider,
   CachingTokenListProvider,
   CachingTokenProviderWithFallback,
@@ -7,6 +9,7 @@ import {
   ChainId,
   EIP1559GasPriceProvider,
   FallbackTenderlySimulator,
+  FailureOverrides,
   TenderlySimulator,
   EthEstimateGasSimulator,
   IGasPriceProvider,
@@ -22,6 +25,7 @@ import {
   NodeJSCache,
   OnChainGasPriceProvider,
   OnChainQuoteProvider,
+  QuoteRetryOptions,
   setGlobalLogger,
   StaticV2SubgraphProvider,
   StaticV3SubgraphProvider,
@@ -63,6 +67,75 @@ export const SUPPORTED_CHAINS: ChainId[] = [
 ]
 const DEFAULT_TOKEN_LIST = 'https://gateway.ipfs.io/ipns/tokens.uniswap.org'
 
+type QuoteProviderProfile = {
+  batchParams: BatchParams
+  gasErrorFailureOverride: FailureOverrides
+  successRateFailureOverrides: FailureOverrides
+  blockNumberConfig?: BlockNumberConfig
+}
+
+const QUOTE_RETRY_OPTIONS: QuoteRetryOptions = { retries: 2, minTimeout: 100, maxTimeout: 1000 }
+
+const OPTIMISM_QUOTE_PROFILE: QuoteProviderProfile = {
+  batchParams: { multicallChunk: 110, gasLimitPerCall: 1_200_000, quoteMinSuccessRate: 0.1 },
+  gasErrorFailureOverride: { gasLimitOverride: 3_000_000, multicallChunk: 45 },
+  successRateFailureOverrides: { gasLimitOverride: 3_000_000, multicallChunk: 45 },
+  blockNumberConfig: {
+    baseBlockOffset: -25,
+    rollback: { enabled: true, attemptsBeforeRollback: 1, rollbackBlockOffset: -20 },
+  },
+}
+
+const ARBITRUM_QUOTE_PROFILE: QuoteProviderProfile = {
+  batchParams: { multicallChunk: 15, gasLimitPerCall: 15_000_000, quoteMinSuccessRate: 0.15 },
+  gasErrorFailureOverride: { gasLimitOverride: 30_000_000, multicallChunk: 8 },
+  successRateFailureOverrides: { gasLimitOverride: 30_000_000, multicallChunk: 8 },
+  blockNumberConfig: {
+    baseBlockOffset: 0,
+    rollback: { enabled: true, attemptsBeforeRollback: 1, rollbackBlockOffset: -10 },
+  },
+}
+
+// Never overridden here, so these are the router's own numbers. Spelling them
+// out means a router upgrade cannot change them silently.
+const ARBITRUM_GOERLI_QUOTE_PROFILE: QuoteProviderProfile = {
+  batchParams: { multicallChunk: 10, gasLimitPerCall: 12_000_000, quoteMinSuccessRate: 0.1 },
+  gasErrorFailureOverride: { gasLimitOverride: 30_000_000, multicallChunk: 6 },
+  successRateFailureOverrides: { gasLimitOverride: 30_000_000, multicallChunk: 6 },
+}
+
+const CELO_QUOTE_PROFILE: QuoteProviderProfile = {
+  batchParams: { multicallChunk: 10, gasLimitPerCall: 5_000_000, quoteMinSuccessRate: 0.1 },
+  gasErrorFailureOverride: { gasLimitOverride: 5_000_000, multicallChunk: 5 },
+  successRateFailureOverrides: { gasLimitOverride: 6_250_000, multicallChunk: 4 },
+}
+
+const CFX_QUOTE_PROFILE: QuoteProviderProfile = {
+  batchParams: { multicallChunk: 50, gasLimitPerCall: 505_000, quoteMinSuccessRate: 0.15 },
+  gasErrorFailureOverride: { gasLimitOverride: 2_000_000, multicallChunk: 10 },
+  successRateFailureOverrides: { gasLimitOverride: 2_000_000, multicallChunk: 10 },
+}
+
+// Mirrors the router's fallback so that naming a chain here never changes
+// behaviour, only makes the parameters visible at the call site.
+const DEFAULT_QUOTE_PROFILE: QuoteProviderProfile = {
+  batchParams: { multicallChunk: 210, gasLimitPerCall: 705_000, quoteMinSuccessRate: 0.15 },
+  gasErrorFailureOverride: { gasLimitOverride: 2_000_000, multicallChunk: 70 },
+  successRateFailureOverrides: { gasLimitOverride: 1_300_000, multicallChunk: 110 },
+}
+
+const QUOTE_PROFILES: Partial<Record<ChainId, QuoteProviderProfile>> = {
+  [ChainId.OPTIMISM]: OPTIMISM_QUOTE_PROFILE,
+  [ChainId.OPTIMISTIC_KOVAN]: OPTIMISM_QUOTE_PROFILE,
+  [ChainId.ARBITRUM_ONE]: ARBITRUM_QUOTE_PROFILE,
+  [ChainId.ARBITRUM_RINKEBY]: ARBITRUM_QUOTE_PROFILE,
+  [ChainId.ARBITRUM_GOERLI]: ARBITRUM_GOERLI_QUOTE_PROFILE,
+  [ChainId.CELO]: CELO_QUOTE_PROFILE,
+  [ChainId.CELO_ALFAJORES]: CELO_QUOTE_PROFILE,
+  [ChainId.CFX]: CFX_QUOTE_PROFILE,
+  [ChainId.CFX_TEST]: CFX_QUOTE_PROFILE,
+}
+
 export interface RequestInjected<Router> extends BaseRInj {
   chainId: ChainId
   metric: IMetric
@@ -84,7 +157,7 @@ export type ContainerDependencies = {
   v2PoolProvider: IV2PoolProvider
   tokenProvider: ITokenProvider
   multicallProvider: UniswapMulticallProvider
-  onChainQuoteProvider?: OnChainQuoteProvider
+  onChainQuoteProvider: OnChainQuoteProvider
   v2QuoteProvider: V2QuoteProvider
   simulator: Simulator
 }
@@ -173,77 +246,17 @@ export abstract class InjectorSOR<Router, QueryParams> extends Injector<
 
       // Some providers like Infura set a gas limit per call of 10x block gas which is approx 150m
       // 200*725k < 150m
-      let quoteProvider: OnChainQuoteProvider | undefined = undefined
-      switch (chainId) {
-        case ChainId.OPTIMISM:
-        case ChainId.OPTIMISTIC_KOVAN:
-          quoteProvider = new OnChainQuoteProvider(
-            chainId,
-            provider,
-            multicall2Provider,
-            {
-              retries: 2,
-              minTimeout: 100,
-              maxTimeout: 1000,
-            },
-            {
-              multicallChunk: 110,
-              gasLimitPerCall: 1_200_000,
-              quoteMinSuccessRate: 0.1,
-            },
-            {
-              gasLimitOverride: 3_000_000,
-              multicallChunk: 45,
-            },
-            {
-              gasLimitOverride: 3_000_000,
-              multicallChunk: 45,
-            },
-            {
-              baseBlockOffset: -25,
-              rollback: {
-                enabled: true,
-                attemptsBeforeRollback: 1,
-                rollbackBlockOffset: -20,
-              },
-            }
-          )
-          break
-        case ChainId.ARBITRUM_ONE:
-        case ChainId.ARBITRUM_RINKEBY:
-          quoteProvider = new OnChainQuoteProvider(
-            chainId,
-            provider,
-            multicall2Provider,
-            {
-              retries: 2,
-              minTimeout: 100,
-              maxTimeout: 1000,
-            },
-            {
-              multicallChunk: 15,
-              gasLimitPerCall: 15_000_000,
-              quoteMinSuccessRate: 0.15,
-            },
-            {
-              gasLimitOverride: 30_000_000,
-              multicallChunk: 8,
-            },
-            {
-              gasLimitOverride: 30_000_000,
-              multicallChunk: 8,
-            },
-            {
-              baseBlockOffset: 0,
-              rollback: {
-                enabled: true,
-                attemptsBeforeRollback: 1,
-                rollbackBlockOffset: -10,
-              },
-            }
-          )
-          break
-      }
+      const quoteProfile = QUOTE_PROFILES[chainId] ?? DEFAULT_QUOTE_PROFILE
+      const quoteProvider = new OnChainQuoteProvider(
+        chainId,
+        provider,
+        multicall2Provider,
+        QUOTE_RETRY_OPTIONS,
+        quoteProfile.batchParams,
+        quoteProfile.gasErrorFailureOverride,
+        quoteProfile.successRateFailureOverrides,
+        quoteProfile.blockNumberConfig
+      )
 
       const v3PoolProvider = new CachingV3PoolProvider(
         chainId,
