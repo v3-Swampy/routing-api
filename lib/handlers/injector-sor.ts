@@ -40,6 +40,7 @@ import UNSUPPORTED_TOKEN_LIST from './../config/unsupported.tokenlist.json'
 import { BaseRInj, Injector } from './handler'
 import { V2AWSSubgraphProvider, V3AWSSubgraphProvider } from './router-entities/aws-subgraph-provider'
 import { AWSTokenListProvider } from './router-entities/aws-token-list-provider'
+import { PairCachingV3SubgraphProvider } from './router-entities/pair-caching-subgraph-provider'
 
 export const SUPPORTED_CHAINS: ChainId[] = [
   ChainId.MAINNET,
@@ -279,7 +280,7 @@ export abstract class InjectorSOR<Router, QueryParams> extends Injector<
             return subgraphProvider
           } catch (err) {
             log.error({ err }, 'AWS Subgraph Provider unavailable, defaulting to Static Subgraph Provider')
-            return new StaticV3SubgraphProvider(chainId, v3PoolProvider)
+            return new PairCachingV3SubgraphProvider(chainId, new StaticV3SubgraphProvider(chainId, v3PoolProvider))
           }
         })(),
         (async () => {

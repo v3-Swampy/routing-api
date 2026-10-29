@@ -8,6 +8,8 @@ export type StaleWhileRevalidateOptions = {
   ttlMs: number
   maxStaleMs: number
   onRefreshError: (key: string, err: unknown) => void
+  /** Drops the oldest entries once the map holds more than this many. */
+  maxEntries?: number
 }
 
 /**
@@ -56,6 +58,7 @@ export class StaleWhileRevalidateCache {
           freshUntil: now + this.options.ttlMs,
           staleUntil: now + this.options.ttlMs + this.options.maxStaleMs,
         })
+        this.evictOldest()
         return value
       })
 
@@ -68,5 +71,20 @@ export class StaleWhileRevalidateCache {
     request.then(clear, clear)
 
     return request
+  }
+
+  private evictOldest(): void {
+    const maxEntries = this.options.maxEntries
+    if (!maxEntries) {
+      return
+    }
+
+    while (this.entries.size > maxEntries) {
+      const oldest = this.entries.keys().next()
+      if (oldest.done) {
+        return
+      }
+      this.entries.delete(oldest.value)
+    }
   }
 }

@@ -100,4 +100,25 @@ describe('StaleWhileRevalidateCache', () => {
     expect(error?.message).to.equal('s3 down')
     expect(loads).to.equal(3)
   })
+
+  it('drops the oldest entry once the map is full', async () => {
+    let loads = 0
+    const cache = new StaleWhileRevalidateCache({
+      ttlMs: 1_000,
+      maxStaleMs: 1_000,
+      maxEntries: 2,
+      onRefreshError: () => {},
+    })
+    const load = async () => {
+      loads++
+      return 'v1'
+    }
+
+    await cache.get('a', load)
+    await cache.get('b', load)
+    await cache.get('c', load)
+    await cache.get('a', load)
+
+    expect(loads).to.equal(4)
+  })
 })
