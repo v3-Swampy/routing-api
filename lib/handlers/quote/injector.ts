@@ -1,21 +1,19 @@
 import {
-  AlphaRouter,
   AlphaRouterConfig,
   ID_TO_CHAIN_ID,
   IRouter,
   LegacyRoutingConfig,
   setGlobalLogger,
   setGlobalMetric,
-  V3HeuristicGasModelFactory,
 } from 'v-swap-smart-order-router'
 import { MetricsLogger } from 'aws-embedded-metrics'
 import { APIGatewayProxyEvent, Context } from 'aws-lambda'
 import { default as bunyan, default as Logger } from 'bunyan'
-import { BigNumber } from 'ethers'
 import { ContainerInjected, InjectorSOR, RequestInjected } from '../injector-sor'
 import { AWSMetricsLogger } from '../router-entities/aws-metrics-logger'
-import { StaticGasPriceProvider } from '../router-entities/static-gas-price-provider'
+import { buildAlphaRouter } from '../router-factory'
 import { QuoteQueryParams } from './schema/quote-schema'
+
 export class QuoteHandlerInjector extends InjectorSOR<
   IRouter<AlphaRouterConfig | LegacyRoutingConfig>,
   QuoteQueryParams
@@ -65,61 +63,16 @@ export class QuoteHandlerInjector extends InjectorSOR<
       throw new Error(`No container injected dependencies for chain: ${chainIdEnum}`)
     }
 
-    const {
-      provider,
-      v3PoolProvider,
-      multicallProvider,
-      tokenProvider,
-      tokenListProvider,
-      v3SubgraphProvider,
-      blockedTokenListProvider,
-      v2PoolProvider,
-      v2QuoteProvider,
-      v2SubgraphProvider,
-      gasPriceProvider: gasPriceProviderOnChain,
-      simulator,
-    } = dependencies
-
-    let onChainQuoteProvider = dependencies.onChainQuoteProvider
-    let gasPriceProvider = gasPriceProviderOnChain
-    if (gasPriceWei) {
-      const gasPriceWeiBN = BigNumber.from(gasPriceWei)
-      gasPriceProvider = new StaticGasPriceProvider(gasPriceWeiBN)
-    }
-
-    let router
-    switch (algorithm) {
-      case 'alpha':
-      default:
-        router = new AlphaRouter({
-          chainId,
-          provider,
-          v3SubgraphProvider,
-          multicall2Provider: multicallProvider,
-          v3PoolProvider,
-          onChainQuoteProvider,
-          gasPriceProvider,
-          v3GasModelFactory: new V3HeuristicGasModelFactory(),
-          blockedTokenListProvider,
-          tokenProvider,
-          v2PoolProvider,
-          v2QuoteProvider,
-          v2SubgraphProvider,
-          simulator,
-        })
-        break
-    }
-
     return {
       chainId: chainIdEnum,
       id: quoteId,
       log,
       metric,
-      router,
-      v3PoolProvider,
-      v2PoolProvider,
-      tokenProvider,
-      tokenListProvider,
+      router: buildAlphaRouter(dependencies, chainIdEnum, { gasPriceWei, simulator: dependencies.simulator }),
+      v3PoolProvider: dependencies.v3PoolProvider,
+      v2PoolProvider: dependencies.v2PoolProvider,
+      tokenProvider: dependencies.tokenProvider,
+      tokenListProvider: dependencies.tokenListProvider,
     }
   }
 }

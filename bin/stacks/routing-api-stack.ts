@@ -81,7 +81,7 @@ export class RoutingAPIStack extends cdk.Stack {
       hosted_zone,
     })
 
-    const { routingLambda, routingLambdaAlias, routeToRatioLambda } = new RoutingLambdaStack(
+    const { routingLambda, routingLambdaAlias, routeToRatioLambda, quoteBatchLambda } = new RoutingLambdaStack(
       this,
       'RoutingLambdaStack',
       {
@@ -202,6 +202,16 @@ export class RoutingAPIStack extends cdk.Stack {
       },
     })
     quote.addMethod('GET', lambdaIntegration)
+
+    // POST rather than GET: a batch is a list of pairs, and aligning parallel
+    // comma separated arrays in a query string is a parsing bug waiting to happen.
+    const quoteBatch = quote.addResource('batch', {
+      defaultCorsPreflightOptions: {
+        allowOrigins: aws_apigateway.Cors.ALL_ORIGINS,
+        allowMethods: aws_apigateway.Cors.ALL_METHODS,
+      },
+    })
+    quoteBatch.addMethod('POST', new aws_apigateway.LambdaIntegration(quoteBatchLambda))
 
     const routeToRatioLambdaIntegration = new aws_apigateway.LambdaIntegration(routeToRatioLambda)
 

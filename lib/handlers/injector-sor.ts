@@ -168,10 +168,12 @@ export interface ContainerInjected {
 
 let containerInjected: Promise<ContainerInjected> | undefined
 
-export abstract class InjectorSOR<Router, QueryParams> extends Injector<
+// Body defaults to void because the query-string handlers pass everything in the
+// URL; the batch handler is the first one that needs to read a JSON body.
+export abstract class InjectorSOR<Router, QueryParams, Body = void> extends Injector<
   ContainerInjected,
   RequestInjected<Router>,
-  void,
+  Body,
   QueryParams
 > {
   public async buildContainerInjected(): Promise<ContainerInjected> {
