@@ -1,4 +1,5 @@
 import { Currency, Percent } from '@uniswap/sdk-core'
+import { Protocol } from '@uniswap/router-sdk'
 import {
   AlphaRouterConfig,
   ChainId,
@@ -94,6 +95,16 @@ export const DEFAULT_ROUTING_CONFIG_BY_CHAIN = (chainId: ChainId): AlphaRouterCo
       }
   }
 }
+
+// A batch quote is for pricing, not for execution: callers get amounts and never
+// calldata. One amount step collapses the split search to a single candidate and
+// V3-only matches what /quote does by default, so a handful of pairs costs about
+// what one ordinary quote costs.
+export const BATCH_ROUTING_CONFIG = (chainId: ChainId): AlphaRouterConfig => ({
+  ...DEFAULT_ROUTING_CONFIG_BY_CHAIN(chainId),
+  distributionPercent: 100,
+  protocols: [Protocol.V3],
+})
 
 export async function tokenStringToCurrency(
   tokenListProvider: ITokenListProvider,
