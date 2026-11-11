@@ -16,6 +16,7 @@ import JSBI from 'jsbi'
 import { APIGLambdaHandler, ErrorResponse, HandleRequestParams, Response } from '../handler'
 import { ContainerInjected, RequestInjected } from '../injector-sor'
 import { V2PoolInRoute, V3PoolInRoute } from '../schema'
+import { reconcileRouteAmounts, withReconciledNativeValue } from '../route-amounts'
 import {
   DEFAULT_ROUTING_CONFIG_BY_CHAIN,
   parseDeadline,
@@ -394,6 +395,27 @@ export class QuoteToRatioHandler extends APIGLambdaHandler<
       }
     }
 
+    // 与 /quote 一致：按整数口径补齐拆单取整造成的差额。
+    // quoteToRatio 只会走 exactIn，响应里的 amount 即 trade.inputAmount。
+    const reconcile = reconcileRouteAmounts(routeResponse, true, trade.inputAmount.quotient)
+    if (JSBI.greaterThan(reconcile.missing, JSBI.BigInt(0))) {
+      log.info(
+        {
+          missingAmount: reconcile.missing.toString(),
+          amount: trade.inputAmount.quotient.toString(),
+          calldataAmount: reconcile.total.toString(),
+          quoteId,
+        },
+        'Reconciled split route amounts after integer truncation'
+      )
+    }
+
+    // 原生币入参时 methodParameters.value 必须与 calldata 实际花掉的量对齐，
+    // 否则补齐前的几个 drip 会以原生币滞留在 Router 里。只改 value，不改 calldata。
+    const responseMethodParameters = trade.inputAmount.currency.isNative
+      ? withReconciledNativeValue(methodParameters, reconcile.total)
+      : methodParameters
+
     const tokenIn = trade.inputAmount.currency.wrapped
     const tokenOut = trade.outputAmount.currency.wrapped
 
@@ -453,7 +475,7 @@ export class QuoteToRatioHandler extends APIGLambdaHandler<
     }
 
     const result: QuoteToRatioResponse = {
-      methodParameters,
+      methodParameters: responseMethodParameters,
       blockNumber: blockNumber.toString(),
       amount: trade.inputAmount.quotient.toString(),
       amountDecimals: trade.inputAmount.toFixed(trade.inputAmount.currency.decimals),
