@@ -21,6 +21,7 @@ import _ from 'lodash'
 import { APIGLambdaHandler, ErrorResponse, HandleRequestParams, Response } from '../handler'
 import { ContainerInjected, RequestInjected } from '../injector-sor'
 import { QuoteResponse, QuoteResponseSchemaJoi, V2PoolInRoute, V3PoolInRoute } from '../schema'
+import { reconcileRouteAmounts, withReconciledNativeValue } from '../route-amounts'
 import {
   DEFAULT_ROUTING_CONFIG_BY_CHAIN,
   parseDeadline,
@@ -435,10 +436,35 @@ export class QuoteHandler extends APIGLambdaHandler<
       routeResponse.push(curRoute)
     }
 
+    // 拆单金额按 Fraction 生成后各自向下取整，总和可能比请求金额少几个最小单位。
+    // 在响应层按整数口径补齐，保证客户端编码的各路径 amountIn/amountOut 之和等于 amount。
+    const reconcile = reconcileRouteAmounts(routeResponse, type == 'exactIn', amount.quotient)
+    if (JSBI.greaterThan(reconcile.missing, JSBI.BigInt(0))) {
+      metric.putMetric('SplitAmountsReconciled', 1, MetricLoggerUnit.Count)
+      log.info(
+        {
+          missingAmount: reconcile.missing.toString(),
+          amount: amount.quotient.toString(),
+          calldataAmount: reconcile.total.toString(),
+          quoteId,
+        },
+        'Reconciled split route amounts after integer truncation'
+      )
+    }
+
+    // methodParameters 是 SOR 在补齐之前生成的：calldata 只会花掉补齐前的总额。
+    // 原生币入参时 value 必须与 calldata 对齐，否则多出来的几个 drip 会以原生币留在
+    // Router 里（refundETH 无鉴权，任何人都能领走）。这里只改 value、不动 calldata，
+    // 因此调用方的 gas 与链上形态完全不变。
+    const responseMethodParameters =
+      type == 'exactIn' && currencyIn.isNative
+        ? withReconciledNativeValue(methodParameters, reconcile.total)
+        : methodParameters
+
     const routeString = routeAmountsToString(route)
 
     const result: QuoteResponse = {
-      methodParameters,
+      methodParameters: responseMethodParameters,
       blockNumber: blockNumber.toString(),
       amount: amount.quotient.toString(),
       amountDecimals: amount.toExact(),
