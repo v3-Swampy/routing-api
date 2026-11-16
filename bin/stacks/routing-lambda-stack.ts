@@ -11,6 +11,22 @@ import * as aws_sns from 'aws-cdk-lib/aws-sns'
 import { Construct } from 'constructs'
 import * as path from 'path'
 
+// Node.js 14 已于 2023-12 停止支持，AWS 现在会拒绝创建/更新使用它的函数
+// （"The runtime parameter of nodejs14.x is no longer supported..."）。
+// aws-cdk-lib@2.45 还没有 NODEJS_22_X 常量，这里手工构造；NodejsFunction 会从
+// runtime.name 推导出 esbuild 的 --target=node22。
+const LAMBDA_RUNTIME = new aws_lambda.Runtime('nodejs22.x', aws_lambda.RuntimeFamily.NODEJS, {
+  supportsInlineCode: false,
+})
+
+// Node.js 18+ 的运行时不再内置 aws-sdk v2，而 handlers 仍在用它（S3/Route53/STS），
+// 所以不能像以前那样把 aws-sdk 标记为 external，必须一起打进部署包。
+const LAMBDA_BUNDLING: aws_lambda_nodejs.BundlingOptions = {
+  minify: true,
+  sourceMap: true,
+  externalModules: [],
+}
+
 export interface RoutingLambdaStackProps extends cdk.NestedStackProps {
   poolCacheBucket: aws_s3.Bucket
   poolCacheBucket2: aws_s3.Bucket
@@ -62,15 +78,12 @@ export class RoutingLambdaStack extends cdk.NestedStack {
 
     this.routingLambda = new aws_lambda_nodejs.NodejsFunction(this, 'RoutingLambda2', {
       role: lambdaRole,
-      runtime: aws_lambda.Runtime.NODEJS_14_X,
+      runtime: LAMBDA_RUNTIME,
       entry: path.join(__dirname, '../../lib/handlers/index.ts'),
       handler: 'quoteHandler',
       timeout: cdk.Duration.seconds(29),
       memorySize: 1024,
-      bundling: {
-        minify: true,
-        sourceMap: true,
-      },
+      bundling: LAMBDA_BUNDLING,
       description: 'Routing Lambda',
       environment: {
         VERSION: '5',
@@ -97,15 +110,12 @@ export class RoutingLambdaStack extends cdk.NestedStack {
 
     this.routeToRatioLambda = new aws_lambda_nodejs.NodejsFunction(this, 'RouteToRatioLambda2', {
       role: lambdaRole,
-      runtime: aws_lambda.Runtime.NODEJS_14_X,
+      runtime: LAMBDA_RUNTIME,
       entry: path.join(__dirname, '../../lib/handlers/index.ts'),
       handler: 'quoteToRatioHandler',
       timeout: cdk.Duration.seconds(29),
       memorySize: 1024,
-      bundling: {
-        minify: true,
-        sourceMap: true,
-      },
+      bundling: LAMBDA_BUNDLING,
       description: 'Route to Ratio Lambda',
       environment: {
         VERSION: '4',
@@ -129,17 +139,14 @@ export class RoutingLambdaStack extends cdk.NestedStack {
 
     this.quoteBatchLambda = new aws_lambda_nodejs.NodejsFunction(this, 'QuoteBatchLambda', {
       role: lambdaRole,
-      runtime: aws_lambda.Runtime.NODEJS_14_X,
+      runtime: LAMBDA_RUNTIME,
       entry: path.join(__dirname, '../../lib/handlers/quote-batch/index.ts'),
       handler: 'quoteBatchHandler',
       // A batch fans out inside the function instead of across requests, so it
       // needs the same 29s as a single quote: the work per pair is smaller.
       timeout: cdk.Duration.seconds(29),
       memorySize: 1024,
-      bundling: {
-        minify: true,
-        sourceMap: true,
-      },
+      bundling: LAMBDA_BUNDLING,
       description: 'Batch Quote Lambda',
       environment: {
         VERSION: '1',
