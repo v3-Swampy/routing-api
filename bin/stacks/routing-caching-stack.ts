@@ -17,6 +17,18 @@ import * as path from 'path'
 import { chainProtocols } from '../../lib/cron/cache-config'
 import { STAGE } from '../../lib/util/stage'
 
+// 见 routing-lambda-stack.ts：nodejs14.x 已被 AWS 停止支持，且 nodejs18+ 不再内置
+// aws-sdk v2，需要把它打进包。
+const LAMBDA_RUNTIME = new aws_lambda.Runtime('nodejs22.x', aws_lambda.RuntimeFamily.NODEJS, {
+  supportsInlineCode: false,
+})
+
+const LAMBDA_BUNDLING: aws_lambda_nodejs.BundlingOptions = {
+  minify: true,
+  sourceMap: true,
+  externalModules: [],
+}
+
 export interface RoutingCachingStackProps extends cdk.NestedStackProps {
   stage: string
   route53Arn?: string
@@ -91,15 +103,12 @@ export class RoutingCachingStack extends cdk.NestedStack {
         `PoolCacheLambda-ChainId${chainId}-Protocol${protocol}`,
         {
           role: lambdaRole,
-          runtime: aws_lambda.Runtime.NODEJS_14_X,
+          runtime: LAMBDA_RUNTIME,
           entry: path.join(__dirname, '../../lib/cron/cache-pools.ts'),
           handler: 'handler',
           timeout: Duration.seconds(900),
           memorySize: 1024,
-          bundling: {
-            minify: true,
-            sourceMap: true,
-          },
+          bundling: LAMBDA_BUNDLING,
           description: `Pool Cache Lambda for Chain with ChainId ${chainId} and Protocol ${protocol}`,
           layers: [lambdaLayerVersion],
           tracing: aws_lambda.Tracing.ACTIVE,
@@ -161,15 +170,12 @@ export class RoutingCachingStack extends cdk.NestedStack {
     if (stage == STAGE.BETA || stage == STAGE.PROD) {
       this.ipfsPoolCachingLambda = new aws_lambda_nodejs.NodejsFunction(this, 'IpfsPoolCacheLambda', {
         role: lambdaRole,
-        runtime: aws_lambda.Runtime.NODEJS_14_X,
+        runtime: LAMBDA_RUNTIME,
         entry: path.join(__dirname, '../../lib/cron/cache-pools-ipfs.ts'),
         handler: 'handler',
         timeout: Duration.seconds(900),
         memorySize: 1024,
-        bundling: {
-          minify: true,
-          sourceMap: true,
-        },
+        bundling: LAMBDA_BUNDLING,
         description: 'IPFS Pool Cache Lambda',
         layers: [
           aws_lambda.LayerVersion.fromLayerVersionArn(
@@ -196,15 +202,12 @@ export class RoutingCachingStack extends cdk.NestedStack {
 
       this.ipfsCleanPoolCachingLambda = new aws_lambda_nodejs.NodejsFunction(this, 'CleanIpfsPoolCacheLambda', {
         role: lambdaRole,
-        runtime: aws_lambda.Runtime.NODEJS_14_X,
+        runtime: LAMBDA_RUNTIME,
         entry: path.join(__dirname, '../../lib/cron/clean-pools-ipfs.ts'),
         handler: 'handler',
         timeout: Duration.seconds(900),
         memorySize: 512,
-        bundling: {
-          minify: true,
-          sourceMap: true,
-        },
+        bundling: LAMBDA_BUNDLING,
         description: 'Clean IPFS Pool Cache Lambda',
         layers: [
           aws_lambda.LayerVersion.fromLayerVersionArn(
@@ -247,15 +250,12 @@ export class RoutingCachingStack extends cdk.NestedStack {
 
     const tokenListCachingLambda = new aws_lambda_nodejs.NodejsFunction(this, 'TokenListCacheLambda', {
       role: lambdaRole,
-      runtime: aws_lambda.Runtime.NODEJS_14_X,
+      runtime: LAMBDA_RUNTIME,
       entry: path.join(__dirname, '../../lib/cron/cache-token-lists.ts'),
       handler: 'handler',
       timeout: Duration.seconds(180),
       memorySize: 256,
-      bundling: {
-        minify: true,
-        sourceMap: true,
-      },
+      bundling: LAMBDA_BUNDLING,
       layers: [
         aws_lambda.LayerVersion.fromLayerVersionArn(
           this,
