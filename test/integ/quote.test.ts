@@ -454,16 +454,17 @@ describe('quote', function () {
               .filter((pool) => !!pool.amountIn)
               .map((pool) => BigNumber.from(pool.amountIn))
               .reduce((cur, total) => total.add(cur), BigNumber.from(0))
-            const amountIn = BigNumber.from(data.quote)
-            expect(amountIn.eq(amountInEdgesTotal))
+            // exactIn: `amount` is the input and `quote` the output; exactOut is the reverse.
+            const expectedAmountIn = BigNumber.from(type == 'exactIn' ? data.amount : data.quote)
+            expect(amountInEdgesTotal.eq(expectedAmountIn)).to.equal(true)
 
             const amountOutEdgesTotal = _(data.route)
-              .flatMap((route) => route[0]!)
+              .map((route) => route[route.length - 1]!)
               .filter((pool) => !!pool.amountOut)
               .map((pool) => BigNumber.from(pool.amountOut))
               .reduce((cur, total) => total.add(cur), BigNumber.from(0))
-            const amountOut = BigNumber.from(data.quote)
-            expect(amountOut.eq(amountOutEdgesTotal))
+            const expectedAmountOut = BigNumber.from(type == 'exactIn' ? data.quote : data.amount)
+            expect(amountOutEdgesTotal.eq(expectedAmountOut)).to.equal(true)
 
             const { tokenInBefore, tokenInAfter, tokenOutBefore, tokenOutAfter } = await executeSwap(
               data.methodParameters!,
@@ -1251,16 +1252,17 @@ describe('quote', function () {
                 .filter((pool) => !!pool.amountIn)
                 .map((pool) => BigNumber.from(pool.amountIn))
                 .reduce((cur, total) => total.add(cur), BigNumber.from(0))
-              const amountIn = BigNumber.from(data.quote)
-              expect(amountIn.eq(amountInEdgesTotal))
+              // exactIn: `amount` is the input and `quote` the output; exactOut is the reverse.
+              const expectedAmountIn = BigNumber.from(type == 'exactIn' ? data.amount : data.quote)
+              expect(amountInEdgesTotal.eq(expectedAmountIn)).to.equal(true)
 
               const amountOutEdgesTotal = _(data.route)
-                .flatMap((route) => route[0]!)
+                .map((route) => route[route.length - 1]!)
                 .filter((pool) => !!pool.amountOut)
                 .map((pool) => BigNumber.from(pool.amountOut))
                 .reduce((cur, total) => total.add(cur), BigNumber.from(0))
-              const amountOut = BigNumber.from(data.quote)
-              expect(amountOut.eq(amountOutEdgesTotal))
+              const expectedAmountOut = BigNumber.from(type == 'exactIn' ? data.quote : data.amount)
+              expect(amountOutEdgesTotal.eq(expectedAmountOut)).to.equal(true)
 
               const { tokenInBefore, tokenInAfter, tokenOutBefore, tokenOutAfter } = await executeSwap(
                 data.methodParameters!,
