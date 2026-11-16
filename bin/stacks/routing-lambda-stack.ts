@@ -27,6 +27,7 @@ export interface RoutingLambdaStackProps extends cdk.NestedStackProps {
 export class RoutingLambdaStack extends cdk.NestedStack {
   public readonly routingLambda: aws_lambda_nodejs.NodejsFunction
   public readonly routeToRatioLambda: aws_lambda_nodejs.NodejsFunction
+  public readonly quoteBatchLambda: aws_lambda_nodejs.NodejsFunction
   public readonly routingLambdaAlias: aws_lambda.Alias
 
   constructor(scope: Construct, name: string, props: RoutingLambdaStackProps) {
@@ -120,6 +121,40 @@ export class RoutingLambdaStack extends cdk.NestedStack {
         aws_lambda.LayerVersion.fromLayerVersionArn(
           this,
           'InsightsLayerSwapAndAdd',
+          `arn:aws:lambda:${region}:580247275435:layer:LambdaInsightsExtension:14`
+        ),
+      ],
+      tracing: aws_lambda.Tracing.ACTIVE,
+    })
+
+    this.quoteBatchLambda = new aws_lambda_nodejs.NodejsFunction(this, 'QuoteBatchLambda', {
+      role: lambdaRole,
+      runtime: aws_lambda.Runtime.NODEJS_14_X,
+      entry: path.join(__dirname, '../../lib/handlers/quote-batch/index.ts'),
+      handler: 'quoteBatchHandler',
+      // A batch fans out inside the function instead of across requests, so it
+      // needs the same 29s as a single quote: the work per pair is smaller.
+      timeout: cdk.Duration.seconds(29),
+      memorySize: 1024,
+      bundling: {
+        minify: true,
+        sourceMap: true,
+      },
+      description: 'Batch Quote Lambda',
+      environment: {
+        VERSION: '1',
+        NODE_OPTIONS: '--enable-source-maps',
+        POOL_CACHE_BUCKET: poolCacheBucket.bucketName,
+        POOL_CACHE_BUCKET_2: poolCacheBucket2.bucketName,
+        POOL_CACHE_KEY: poolCacheKey,
+        TOKEN_LIST_CACHE_BUCKET: tokenListCacheBucket.bucketName,
+        ETH_GAS_STATION_INFO_URL: ethGasStationInfoUrl,
+        ...jsonRpcProviders,
+      },
+      layers: [
+        aws_lambda.LayerVersion.fromLayerVersionArn(
+          this,
+          'InsightsLayerQuoteBatch',
           `arn:aws:lambda:${region}:580247275435:layer:LambdaInsightsExtension:14`
         ),
       ],

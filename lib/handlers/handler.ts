@@ -318,7 +318,9 @@ export abstract class APIGLambdaHandler<CInj, RInj extends BaseRInj, ReqBody, Re
     const bodySchema = this.requestBodySchema()
 
     let body: ReqBody | undefined
-    if (bodyRaw && bodySchema) {
+    // Validate even when the body is missing: a POST without one has to come
+    // back as a 400 from the schema, not as a 500 from the handler.
+    if (bodySchema) {
       const bodyValidation = bodySchema.validate(bodyRaw, {
         allowUnknown: true, // Makes API schema changes and rollbacks easier.
         stripUnknown: true,
