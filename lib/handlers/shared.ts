@@ -10,6 +10,36 @@ import {
 } from 'v-swap-smart-order-router'
 import Logger from 'bunyan'
 
+// The shape every chain gets unless it has a reason to differ. Kept as a
+// function so a chain-level exception can spread it and override one field,
+// instead of restating the other twenty.
+const defaultRoutingConfig = (): AlphaRouterConfig => ({
+  v2PoolSelection: {
+    topN: 3,
+    topNDirectSwaps: 1,
+    topNTokenInOut: 5,
+    topNSecondHop: 2,
+    topNWithEachBaseToken: 2,
+    topNWithBaseToken: 6,
+  },
+  v3PoolSelection: {
+    topN: 2,
+    topNDirectSwaps: 2,
+    topNTokenInOut: 3,
+    topNSecondHop: 1,
+    topNSecondHopForTokenAddress: new MapWithLowerCaseKey<number>([
+      ['0x5f98805a4e8be255a32880fdec7f6728c6568ba0', 2], // LUSD
+    ]),
+    topNWithEachBaseToken: 3,
+    topNWithBaseToken: 5,
+  },
+  maxSwapsPerPath: 3,
+  minSplits: 1,
+  maxSplits: 7,
+  distributionPercent: 5,
+  forceCrossProtocol: false,
+})
+
 export const DEFAULT_ROUTING_CONFIG_BY_CHAIN = (chainId: ChainId): AlphaRouterConfig => {
   switch (chainId) {
     case ChainId.OPTIMISM:
@@ -65,33 +95,12 @@ export const DEFAULT_ROUTING_CONFIG_BY_CHAIN = (chainId: ChainId): AlphaRouterCo
         distributionPercent: 25,
         forceCrossProtocol: false,
       }
+    // Conflux pays for every candidate route on chain, which makes its quote
+    // phase nearly the whole request. Widening the amount steps was tried and
+    // taken back out: it buys quote count at the cost of a coarser split grid,
+    // and precision is what the caller is asking for. Left on the default.
     default:
-      return {
-        v2PoolSelection: {
-          topN: 3,
-          topNDirectSwaps: 1,
-          topNTokenInOut: 5,
-          topNSecondHop: 2,
-          topNWithEachBaseToken: 2,
-          topNWithBaseToken: 6,
-        },
-        v3PoolSelection: {
-          topN: 2,
-          topNDirectSwaps: 2,
-          topNTokenInOut: 3,
-          topNSecondHop: 1,
-          topNSecondHopForTokenAddress: new MapWithLowerCaseKey<number>([
-            ['0x5f98805a4e8be255a32880fdec7f6728c6568ba0', 2], // LUSD
-          ]),
-          topNWithEachBaseToken: 3,
-          topNWithBaseToken: 5,
-        },
-        maxSwapsPerPath: 3,
-        minSplits: 1,
-        maxSplits: 7,
-        distributionPercent: 5,
-        forceCrossProtocol: false,
-      }
+      return defaultRoutingConfig()
   }
 }
 
